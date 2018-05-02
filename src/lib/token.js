@@ -4,7 +4,7 @@ module.exports = (function () {
 
     function tokenName(name) {
         name = name || this.currentToken;
-        
+
         if (name) {
             return name;
         }
@@ -13,10 +13,10 @@ module.exports = (function () {
             return this.options.tokenImpersonateName;
         }
 
-        return this.options.tokenDefaultName;
+        return this.options.accessTokenName;
     }
 
-    function isLocalStorageSupported() {
+    function isWebStorageSupported() {
         try {
             if (!window.localStorage || !window.sessionStorage) {
                 throw 'exception';
@@ -24,7 +24,14 @@ module.exports = (function () {
 
             localStorage.setItem('storage_test', 1);
             localStorage.removeItem('storage_test');
-            
+
+            /**
+             * Just to be sure
+             */
+
+            sessionStorage.setItem('storage_test', 1);
+            sessionStorage.removeItem('storage_test');
+
             return true;
         } catch (e) {
             return false;
@@ -43,9 +50,26 @@ module.exports = (function () {
             args.push(token);
         }
 
+        /**
+         * I've converted the isLocalStorageSupported
+         * function name to isWebStorageSupported so the name convers both storages
+         */
+
+        let _isWebStorageSupported = isWebStorageSupported();
+
+
         for (i = 0, ii = this.options.tokenStore.length; i < ii; i++) {
-            if (this.options.tokenStore[i] === 'localStorage' && isLocalStorageSupported()) {
+            /**
+             * Added sessionStorage to set short-lived tokens when user don't
+             * want to be remembered
+             */
+
+            if (this.options.tokenStore[i] === 'localStorage' && _isWebStorageSupported) {
                 return localStorage[action + 'Item'](args[0], args[1]);
+            }
+
+            else if (this.options.tokenStore[i] === 'sessionStorage' && _isWebStorageSupported) {
+                return sessionStorage[action + 'Item'](args[0], args[1]);
             }
 
             else if (this.options.tokenStore[i] === 'cookie' && isCookieSupported()) {

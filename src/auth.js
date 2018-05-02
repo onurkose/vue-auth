@@ -69,13 +69,14 @@ module.exports = function () {
             this.options.logoutProcess.call(this, null, {});
         }
 
-        if (this.options.refreshData.enabled && ! this.watch.loaded && __token.get.call(this)) {
+        if (this.options.refreshData.enabled && !this.watch.loaded && __token.get.call(this)) {
+            this.options.refreshData.data.refresh_token = __token.get.call(this, this.options.refreshTokenName)
+
             this.options.refreshPerform.call(this, {
                 success: function () {
                     this.options.checkAuthenticated.call(_this, cb);
                 }
             });
-
             return;
         }
 
@@ -126,9 +127,13 @@ module.exports = function () {
         }
 
         if (req.impersonating === false && this.impersonating()) {
-            tokenName = this.options.tokenDefaultName;
+            /**
+             * defaultTokenName > accessTokenName
+             */
+
+            tokenName = this.options.accessTokenName;
         }
-        
+
         token = __token.get.call(this, tokenName);
 
         if (token) {
@@ -139,7 +144,12 @@ module.exports = function () {
     }
 
     function _responseIntercept(res, req) {
-        var token;
+        /**
+         * token > tokens
+         * We'll have more than one token from Laravel Passport
+         */
+
+        let tokens;
 
         if (req && req.ignoreVueAuth) {
             return;
@@ -147,10 +157,18 @@ module.exports = function () {
 
         _processInvalidToken.call(this, res, __transitionThis);
 
-        token = this.options.auth.response.call(this, res);
+        /**
+         * this.options.auth.response is already routed to laravel-passport-bearer.js
+         * So, we should expect tokens are as object, includes access_token, refresh_token
+         * and expires_in data. Check the driver file for more information.
+         */
 
-        if (token) {
-            __token.set.call(this, null, token);
+        tokens = this.options.auth.response.call(this, res);
+
+        if (typeof tokens === 'object') {
+            __token.set.call(this, this.options.accessTokenName, tokens.accessToken);
+            __token.set.call(this, this.options.refreshTokenName, tokens.refreshToken);
+            __token.set.call(this, this.options.tokenExpireDateKey, tokens.tokenExpireDate);
         }
     }
 
@@ -273,7 +291,7 @@ module.exports = function () {
     function _fetchProcess(res, data) {
         this.watch.authenticated = true;
         this.watch.data = this.options.parseUserData.call(this, this.options.http._httpData.call(this, res));
-        
+
         this.watch.loaded = true;
 
         if (this.options.fetchData.success) { this.options.fetchData.success.call(this, res); }
@@ -282,6 +300,39 @@ module.exports = function () {
     }
 
     function _refreshPerform(data) {
+        /**
+         * This function is triggered by two locations:
+         *   1] function _routerBeforeEach; to make sure before each route navigation
+         *     if user logged in
+         *   2} function Auth; to check user auth status periodically
+         *
+         * If you've enabled checkExpireDate, this guard will be depending on expireDate info.
+         *
+         * Either case, if you are using Laravel Passport, it'll check token expiration
+         * date anyways on every request. So you should only worry about client side
+         * sensitive routes that displays static information that might cause a security
+         * breach.
+         */
+
+        if (this.options.refreshData.checkExpiration) {
+            let tokenExpireDate = __token.get.call(this, this.options.tokenExpireDateKey)
+
+            let diff = tokenExpireDate - Date.now();
+
+            /**
+             * expireDate is already passed or will do pass in one hour
+             * 60′ x 60″ x 1000 ms
+             */
+
+            if (0 > diff || diff < 3600000) {
+                return __duckPunch.call(this, 'refresh', data);
+            } else {
+                if (data.success) {
+                    return data.success.call(this, {});
+                }
+            }
+        }
+
         return __duckPunch.call(this, 'refresh', data);
     }
 
@@ -309,6 +360,12 @@ module.exports = function () {
     }
 
     function _loginPerform(data) {
+        /**
+         * Check function context for more info
+         */
+
+        _updateStoragePreference.call(this, { rememberMe: data.rememberMe })
+
         return __duckPunch.call(this, 'login', data);
     }
 
@@ -346,10 +403,14 @@ module.exports = function () {
         __cookie.remove.call(this, 'rememberMe');
 
         __cookie.remove.call(this, this.options.tokenImpersonateName);
-        __cookie.remove.call(this, this.options.tokenDefaultName);
+        __cookie.remove.call(this, this.options.accessTokenName);
+        __cookie.remove.call(this, this.options.refreshTokenName);
+        __cookie.remove.call(this, this.options.tokenExpireDateKey);
 
         __token.remove.call(this, this.options.tokenImpersonateName);
-        __token.remove.call(this, this.options.tokenDefaultName);
+        __token.remove.call(this, this.options.accessTokenName);
+        __token.remove.call(this, this.options.refreshTokenName);
+        __token.remove.call(this, this.options.tokenExpireDateKey);
 
         this.watch.authenticated = false;
         this.watch.data = null;
@@ -373,7 +434,7 @@ module.exports = function () {
 
             // Reshuffle tokens here...
             __token.set.call(this, this.options.tokenImpersonateName, this.token.call(this));
-            __token.set.call(this, this.options.tokenDefaultName, token);
+            __token.set.call(this, this.options.accessTokenName, token);
 
             if (success) { success.call(this, res); }
         };
@@ -472,14 +533,48 @@ module.exports = function () {
         }
     }
 
+    function _updateStoragePreference(data) {
+        /**
+         * Well, this part is little bit tricky.
+         * This is where we check the rememberMe cookie is set true or false.
+         * So we'll know if user wanted to be remembered or not. Then we can decide which
+         * storage to use for the rest of the session.
+         *
+         * This function to be called by loginPerform and Auth functions
+         */
+
+        let checkCookie = true,
+            rememberMe = false;
+
+        if (data !== undefined) {
+            if (data.rememberMe !== undefined) {
+                rememberMe = data.rememberMe;
+
+                checkCookie = false;
+            }
+        }
+
+        if (checkCookie) {
+            rememberMe = __cookie.get.call(this, 'rememberMe');
+        }
+
+        for (i = 0, ii = this.options.tokenStore.length; i < ii; i++) {
+            if (this.options.tokenStore[i] === ((rememberMe === 'true') ? 'sessionStorage' : 'localStorage')) {
+                this.options.tokenStore[i] = (rememberMe === 'true') ? 'localStorage' : 'sessionStorage';
+            }
+        }
+    }
+
     var defaultOptions = {
 
         // Variables
 
         rolesVar:             'roles',
         tokenImpersonateName: 'impersonate_auth_token',
-        tokenDefaultName:     'default_auth_token',
-        tokenStore:           ['localStorage', 'cookie'],
+        accessTokenName:      'accessToken',
+        refreshTokenName:     'refreshToken',
+        tokenExpireDateKey:   'tokenExpireDate',
+        tokenStore:           ['sessionStorage', 'cookie'],
 
         // Objects
 
@@ -487,17 +582,39 @@ module.exports = function () {
         forbiddenRedirect:  {path: '/403'},
         notFoundRedirect:   {path: '/404'},
 
-        registerData:       {url: 'auth/register',      method: 'POST', redirect: '/login'},
-        loginData:          {url: 'auth/login',         method: 'POST', redirect: '/', fetchUser: true},
-        logoutData:         {url: 'auth/logout',        method: 'POST', redirect: '/', makeRequest: false},
+        registerData:       {url: 'auth/register',      method: 'POST', redirect: 'auth//login'},
+
+        /**
+         * I've added grant_type vars to login and refresh functions.
+         * Laravel Passport issues or refreshes tokens by this values.
+         */
+
+        loginData:          {url: 'oauth/token',        method: 'POST', redirect: 'dashboard', fetchUser: false, data: { grant_type: 'password' }},
+        logoutData:         {url: 'auth/logout',        method: 'POST', redirect: 'auth/login', makeRequest: false},
         oauth1Data:         {url: 'auth/login',         method: 'POST'},
-        fetchData:          {url: 'auth/user',          method: 'GET', enabled: true},
-        refreshData:        {url: 'auth/refresh',       method: 'GET', enabled: true, interval: 30},
+        fetchData:          {url: 'auth/user',          method: 'GET',  enabled: false},
+
+        /**
+         * Since we now have the expireDate datum for the accessToken
+         * we don't really need to ask server the accessToken to be
+         * refreshed each 30 minutes. If you're issuing very short lifed
+         * tokens, it's better to disable checkExpiration to false so do
+         * real token refresh operation periodically. Otherwise it'll only
+         * be refreshed when the time very close to expireDate
+         */
+
+        refreshData:        {url: 'oauth/token',        method: 'POST', enabled: true, interval: 30, checkExpiration: true, data: { grant_type: 'refresh_token' }},
         impersonateData:    {url: 'auth/impersonate',   method: 'POST', redirect: '/'},
         unimpersonateData:  {url: 'auth/unimpersonate', method: 'POST', redirect: '/admin', makeRequest: false},
 
         facebookData:       {url: 'auth/facebook',      method: 'POST', redirect: '/'},
         googleData:         {url: 'auth/google',        method: 'POST', redirect: '/'},
+
+        /**
+         * We'll extend this passportData during package initialization
+         */
+
+        passportData:       {client_id: 0, client_secret: 'not so secret'},
 
         facebookOauth2Data: {
             url: 'https://www.facebook.com/v2.5/dialog/oauth',
@@ -534,6 +651,8 @@ module.exports = function () {
         routerBeforeEach:   _routerBeforeEach,
         requestIntercept:   _requestIntercept,
         responseIntercept:  _responseIntercept,
+
+        updateStoragePreference:  _updateStoragePreference,
 
         // Contextual
 
@@ -591,6 +710,14 @@ module.exports = function () {
             }
         });
 
+        /**
+         * Extend refreshData and loginData with the Laravel Passport requirements
+         * Maybe it's not the best solution by now (ES15 Object.assign)
+         */
+
+        this.options.refreshData.data = Object.assign(this.options.refreshData.data, this.options.passportData);
+        this.options.loginData.data = Object.assign(this.options.loginData.data, this.options.passportData);
+
         // Check drivers.
         for (i = 0, ii = drivers.length; i < ii; i++) {
             if ( ! this.options[drivers[i]]) {
@@ -608,11 +735,26 @@ module.exports = function () {
             }
         }
 
+
+        /**
+         * Check function context for more info
+         */
+
+        _this.options.updateStoragePreference.call(this);
+
+
         // Set refresh interval.
         if (this.options.refreshData.interval && this.options.refreshData.interval > 0) {
             setInterval(function () {
                 if (this.options.refreshData.enabled && !this.options.tokenExpired.call(this)) {
-                    this.options.refreshPerform.call(this, {});
+                    /**
+                     * Attaching refreshToken to every refreshPerform action so our accessToken
+                     * will never be expired
+                     */
+
+                    this.options.refreshData.data.refresh_token = __token.get.call(this, this.options.refreshTokenName);
+
+                    this.options.refreshPerform.call(this);
                 }
             }.bind(this), this.options.refreshData.interval * 1000 * 60); // In minutes.
         }
@@ -700,9 +842,9 @@ module.exports = function () {
 
     Auth.prototype.disableImpersonate = function () {
         if (this.impersonating()) {
-            this.currentToken = this.options.tokenDefaultName;
+            this.currentToken = this.options.accessTokenName;
         }
-    }; 
+    };
 
     return Auth;
 };
