@@ -559,8 +559,8 @@ module.exports = function () {
         }
 
         for (i = 0, ii = this.options.tokenStore.length; i < ii; i++) {
-            if (this.options.tokenStore[i] === ((rememberMe === 'true') ? 'sessionStorage' : 'localStorage')) {
-                this.options.tokenStore[i] = (rememberMe === 'true') ? 'localStorage' : 'sessionStorage';
+            if (['sessionStorage', 'localStorage'].indexOf(this.options.tokenStore[i]) !== -1) {
+                this.options.tokenStore[i] = (rememberMe === true || rememberMe === 'true') ? 'localStorage' : 'sessionStorage';
             }
         }
     }
