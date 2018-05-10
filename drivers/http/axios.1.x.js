@@ -1,6 +1,6 @@
 module.exports = {
   _init: function () {
-      if ( ! this.options.Vue.axios) {
+      if ( ! this.options.Vue.prototype.$axios) {
           return 'axios.js : Vue.axios must be set.'
       }
   },
@@ -9,7 +9,7 @@ module.exports = {
     var _this = this;
 
     if (req) {
-      this.options.Vue.axios.interceptors.request.use(function (request) {
+      this.options.Vue.prototype.$axios.interceptors.request.use(function (request) {
         req.call(_this, request);
         return request;
       }, function (error) {
@@ -19,7 +19,7 @@ module.exports = {
     }
 
     if (res) {
-      this.options.Vue.axios.interceptors.response.use(function (response) {
+      this.options.Vue.prototype.$axios.interceptors.response.use(function (response) {
         res.call(_this, response);
         return response;
       }, function (error) {
@@ -43,7 +43,7 @@ module.exports = {
   },
 
   _http: function (data) {
-    var http = this.options.Vue.axios(data);
+    var http = this.options.Vue.prototype.$axios(data);
 
     http.then(data.success, data.error);
 
