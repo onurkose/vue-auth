@@ -1,6 +1,6 @@
 # Vue Auth
 
-Forked from websanova/vue-auth and used as a boilerplate to implement Laravel Passport specific features.
+Forked from websanova/vue-auth and used as a boilerplate to implement Laravel Passport and Quasar Framework specific features.
 
 This version does:
 * Stores access_token, refresh_token and expires_in (by converting to expireDate)
