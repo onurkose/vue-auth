@@ -75,6 +75,8 @@ module.exports = function () {
             this.options.refreshPerform.call(this, {
                 success: function () {
                     this.options.checkAuthenticated.call(_this, cb);
+
+                    this.options.Vue.prototype.$token = __token.get.call(this, this.options.accessTokenName);
                 }
             });
             return;
