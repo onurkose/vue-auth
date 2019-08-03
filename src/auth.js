@@ -168,6 +168,8 @@ module.exports = function () {
         tokens = this.options.auth.response.call(this, res);
 
         if (typeof tokens === 'object') {
+            this.options.Vue.prototype.$token = tokens.accessToken
+
             __token.set.call(this, this.options.accessTokenName, tokens.accessToken);
             __token.set.call(this, this.options.refreshTokenName, tokens.refreshToken);
             __token.set.call(this, this.options.tokenExpireDateKey, tokens.tokenExpireDate);
