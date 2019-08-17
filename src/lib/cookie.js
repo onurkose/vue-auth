@@ -6,7 +6,7 @@ module.exports = (function () {
             cookie = name + '=' + value + '; Expires=' + expires + '; Path=/; ';
         
         if (domain !== 'localhost') {
-            cookie += ' Domain=' + domain + ';';
+            cookie += ' Domain=' + domain + ';'
         }
 
         document.cookie = cookie;
