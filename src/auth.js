@@ -595,8 +595,8 @@ module.exports = function () {
          * Laravel Passport issues or refreshes tokens by this values.
          */
 
-        loginData:          {url: 'oauth/token',        method: 'POST', redirect: 'dashboard', fetchUser: false, data: { grant_type: 'password' }},
-        logoutData:         {url: 'auth/logout',        method: 'POST', redirect: 'auth/login', makeRequest: false},
+        loginData:          {url: 'oauth/token',        method: 'POST', redirect: '/dashboard', fetchUser: false, data: { grant_type: 'password' }},
+        logoutData:         {url: 'auth/logout',        method: 'POST', redirect: '/auth/login', makeRequest: false},
         oauth1Data:         {url: 'auth/login',         method: 'POST'},
         fetchData:          {url: 'auth/user',          method: 'GET',  enabled: false},
 

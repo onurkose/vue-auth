@@ -57,8 +57,6 @@ module.exports = {
     _routerGo: function (data) {
         var router = this.options.Vue.router;
 
-        console.warn('Router go:', data)
-
         (router.push || router.go).call(router, data).catch((err) => { });
     }
 
