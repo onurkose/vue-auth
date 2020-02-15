@@ -9,6 +9,10 @@ module.exports = (function () {
             cookie += ' Domain=' + domain + ';'
         }
 
+        if (location.protocol === 'https:') {
+            cookie += 'secure';
+        }
+
         document.cookie = cookie;
     }
 

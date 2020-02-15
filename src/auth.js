@@ -419,6 +419,8 @@ module.exports = function () {
         this.watch.authenticated = false;
         this.watch.data = null;
 
+        localStorage.clear();
+
         if (data.success) { data.success.call(this, res, data); }
 
         if (data.redirect) {
