@@ -758,7 +758,13 @@ module.exports = function () {
 
                     this.options.refreshData.data.refresh_token = __token.get.call(this, this.options.refreshTokenName);
 
-                    this.options.refreshPerform.call(this);
+                    this.options.refreshPerform.call(this, {
+                        success: function () {
+                            this.options.checkAuthenticated.call(_this, function() {});
+                            
+                            this.options.Vue.prototype.$token = __token.get.call(this, this.options.accessTokenName);
+                        }
+                    });
                 }
             }.bind(this), this.options.refreshData.interval * 1000 * 60); // In minutes.
         }
